@@ -263,7 +263,6 @@ class ApiClient {
       description: template.description?.trim(),
       is_default: Boolean(template.isDefault || template.is_default),
       passing_grade: template.passingGrade ?? template.passing_grade ?? 75,
-      grade_display_mode: template.gradeDisplayMode || template.grade_display_mode || 'both',
       matrix: template.matrix || [],
     };
 
@@ -291,7 +290,7 @@ class ApiClient {
       description: payload.description,
       isDefault: payload.is_default,
       passingGrade: payload.passing_grade,
-      gradeDisplayMode: payload.grade_display_mode as any,
+      gradeDisplayMode: (template.gradeDisplayMode || template.grade_display_mode || 'both') as any,
       matrix: payload.matrix,
     };
   }
@@ -341,9 +340,7 @@ class ApiClient {
       units: data.units ?? 3,
       passing_grade: data.passingGrade ?? 75,
       schedule: data.schedule,
-      grading_matrix_template_id: data.gradingMatrixTemplateId || null,
-      matrix: data.matrix || null,
-      grade_display_mode: 'both',
+      matrix: data.matrix || [],
     };
 
     const res = await this.request<{ success: boolean; errors?: string[] }>('/api/data/sync', {
