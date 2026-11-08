@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Left Blue Swoosh -->
+  <path d="M 40 170 C 40 170 85 50 115 35 C 105 75 80 120 40 170 Z" fill="#0284C7" />
+  <path d="M 115 35 C 125 50 125 70 120 85 C 98 105 60 135 40 170 C 55 130 90 65 115 35 Z" fill="#0EA5E9" />
+  
+  <!-- Right / Center Green Swoosh Arching Up & Right -->
+  <path d="M 60 165 C 80 115 110 85 160 80 C 130 95 115 125 110 165 C 100 135 80 125 60 165 Z" fill="#65A30D" />
+  <path d="M 60 165 C 85 105 125 80 165 78 C 140 88 115 115 110 165 Z" fill="#84CC16" opacity="0.8" />
+  
+  <!-- 4-Point Star Sparkle at Top-Right -->
+  <path d="M 175 60 C 175 68 178 72 186 75 C 178 78 175 82 175 90 C 175 82 172 78 164 75 C 172 72 175 68 175 60 Z" fill="#0EA5E9" />
+</svg>
