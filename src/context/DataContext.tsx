@@ -59,7 +59,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (allData) {
         setSections(allData.sections || []);
-        setSubjects(allData.subjects || []);
+        const uniqueSubMap = new Map<string, Subject>();
+        for (const sub of (allData.subjects || [])) {
+          if (!uniqueSubMap.has(sub.id)) {
+            uniqueSubMap.set(sub.id, sub);
+          }
+        }
+        setSubjects(Array.from(uniqueSubMap.values()));
         setCourses(allData.courses || []);
 
         if (allData.assessments && allData.assessments.length > 0) {

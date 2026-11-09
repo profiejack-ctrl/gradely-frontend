@@ -59,9 +59,17 @@ export const ClassSectionCard: React.FC<ClassSectionCardProps> = ({
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
         {subjects.map((sub) => {
-          const scheduleText = sub.schedule && sub.schedule.length > 0
-            ? `${sub.schedule[0].day.slice(0, 3)} ${sub.schedule[0].startTime} - ${sub.schedule[0].endTime}`
-            : 'MWF 8:00 AM - 9:00 AM';
+          const scheduleText = (() => {
+            if (!sub.schedule || sub.schedule.length === 0) return 'TBA Schedule';
+            const f2f = sub.schedule.find((s) => s.mode === 'f2f');
+            const online = sub.schedule.find((s) => s.mode === 'online');
+            if (f2f && online) {
+              return `${f2f.day.slice(0, 3)} ${f2f.startTime}-${f2f.endTime} (F2F) • ${online.day.slice(0, 3)} ${online.startTime}-${online.endTime} (Online)`;
+            }
+            return sub.schedule
+              .map((s) => `${s.day.slice(0, 3)} ${s.startTime}-${s.endTime} (${s.mode === 'online' ? 'Online' : 'F2F'})`)
+              .join(' • ');
+          })();
 
           const matrixCount = sub.matrix?.length || 3;
 
