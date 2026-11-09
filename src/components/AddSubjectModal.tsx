@@ -49,6 +49,9 @@ const TIME_OPTIONS = [
   '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM', '09:00 PM'
 ];
 
+import { normalizeMatrixCategories } from '../utils/matrix';
+export { normalizeMatrixCategories };
+
 export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
   isOpen,
   onClose,
@@ -61,6 +64,8 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { courses: contextCourses, addCourseLocal, addSubjectLocal } = useData();
+  const safeSections = sections || [];
+  const safeTemplates = templates || [];
   const availableCourses = propCourses || contextCourses || [];
 
   const isDean = user?.role === 'dean';
@@ -94,26 +99,28 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
   useEffect(() => {
     if (initialSectionId) {
       setSectionId(initialSectionId);
-    } else if (sections.length > 0 && !sectionId) {
-      setSectionId(sections[0].id);
+    } else if (safeSections.length > 0 && !sectionId) {
+      setSectionId(safeSections[0].id);
     }
-  }, [initialSectionId, sections]);
+  }, [initialSectionId, safeSections, sectionId]);
 
   // Set default grading matrix template
   useEffect(() => {
-    if (templates.length > 0 && !templateId) {
-      const defaultTmpl = templates.find((t) => t.isDefault || t.is_default) || templates[0];
-      setTemplateId(defaultTmpl.id);
+    if (safeTemplates.length > 0 && !templateId) {
+      const defaultTmpl = safeTemplates.find((t) => t.isDefault || t.is_default) || safeTemplates[0];
+      if (defaultTmpl) {
+        setTemplateId(defaultTmpl.id);
+      }
     }
-  }, [templates]);
+  }, [safeTemplates, templateId]);
 
   // Auto-fill room based on selected section
   useEffect(() => {
-    const sec = sections.find((s) => s.id === sectionId);
+    const sec = safeSections.find((s) => s.id === sectionId);
     if (sec?.room) {
       setF2fRoom(sec.room);
     }
-  }, [sectionId, sections]);
+  }, [sectionId, safeSections]);
 
   // Reset or initialize modal state when opened
   useEffect(() => {
@@ -146,7 +153,8 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
 
   if (!isOpen) return null;
 
-  const selectedTemplate = templates.find((t) => t.id === templateId) || templates[0];
+  const selectedTemplate = safeTemplates.find((t) => t.id === templateId) || safeTemplates[0];
+  const templateCategories = normalizeMatrixCategories(selectedTemplate?.matrix);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,7 +179,7 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
           units: Number(units) || 3,
           passingGrade: selectedTemplate?.passingGrade ?? selectedTemplate?.passing_grade ?? 75,
           gradingMatrixTemplateId: templateId || undefined,
-          matrix: selectedTemplate?.matrix,
+          matrix: templateCategories.length > 0 ? templateCategories : undefined,
           department: user?.department || 'College of Information Technology',
         });
 
@@ -219,7 +227,7 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
         passingGrade: selectedTemplate?.passingGrade ?? selectedTemplate?.passing_grade ?? 75,
         schedule: scheduleSessions,
         gradingMatrixTemplateId: templateId || undefined,
-        matrix: selectedTemplate?.matrix,
+        matrix: templateCategories.length > 0 ? templateCategories : undefined,
       });
 
       addSubjectLocal(newSubject);
@@ -381,7 +389,7 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
                     onChange={(e) => setSectionId(e.target.value)}
                     className="w-full bg-[#111A2D] border border-slate-700/80 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-[#0284C7]"
                   >
-                    {sections.map((sec) => (
+                    {safeSections.map((sec) => (
                       <option key={sec.id} value={sec.id}>
                         {sec.name} ({sec.gradeLevelOrYear || '2nd Year College'})
                       </option>
@@ -579,7 +587,7 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
               onChange={(e) => setTemplateId(e.target.value)}
               className="w-full bg-[#111A2D] border border-slate-700/80 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-[#0284C7]"
             >
-              {templates.map((tmpl) => (
+              {safeTemplates.map((tmpl) => (
                 <option key={tmpl.id} value={tmpl.id}>
                   {tmpl.name} (Passing: {tmpl.passingGrade ?? tmpl.passing_grade ?? 75}%)
                 </option>
@@ -587,14 +595,14 @@ export const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
             </select>
 
             {/* Matrix Criteria Breakdown Pill Preview */}
-            {selectedTemplate?.matrix && (
+            {templateCategories.length > 0 && (
               <div className="p-3 bg-[#111A2D]/50 rounded-xl border border-slate-800/80">
                 <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-2 flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-[#38BDF8]" />
                   <span>Template Distribution Preview</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {selectedTemplate.matrix.map((cat, idx) => (
+                  {templateCategories.map((cat, idx) => (
                     <span
                       key={cat.id || idx}
                       className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-200 text-xs font-semibold flex items-center gap-1.5"

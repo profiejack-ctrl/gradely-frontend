@@ -1,5 +1,6 @@
 import React from 'react';
 import { Section, Subject } from '../api/types';
+import { normalizeMatrixCategories } from '../utils/matrix';
 import { Users, BookOpen, Clock, ArrowRight, Upload } from 'lucide-react';
 
 interface ClassSectionCardProps {
@@ -71,7 +72,7 @@ export const ClassSectionCard: React.FC<ClassSectionCardProps> = ({
               .join(' • ');
           })();
 
-          const matrixCount = sub.matrix?.length || 3;
+          const matrixCount = normalizeMatrixCategories(sub.matrix).length || 3;
 
           return (
             <div

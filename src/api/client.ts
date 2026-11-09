@@ -248,7 +248,18 @@ class ApiClient {
   // Matrix Templates
   async getMatrixTemplates(): Promise<GradingMatrixTemplate[]> {
     try {
-      return await this.request<GradingMatrixTemplate[]>('/api/faculty/matrix-templates');
+      const data = await this.request<any[]>('/api/faculty/matrix-templates');
+      return (data || []).map((t) => {
+        let matrix = t.matrix || [];
+        if (matrix && !Array.isArray(matrix) && typeof matrix === 'object') {
+          matrix = matrix.categories || [];
+        }
+        return {
+          ...t,
+          passingGrade: t.passingGrade ?? t.passing_grade ?? 75,
+          matrix: Array.isArray(matrix) ? matrix : [],
+        };
+      });
     } catch (err) {
       console.warn('[api] Failed to fetch matrix templates:', err);
       return [];

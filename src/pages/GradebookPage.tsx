@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { Assessment, Subject, User, MatrixCategory } from '../api/types';
+import { normalizeMatrixCategories } from '../utils/matrix';
 import { parseNameParts } from './StudentsPage';
 import {
   Table,
@@ -227,18 +228,22 @@ export const GradebookPage: React.FC<GradebookPageProps> = ({ initialSubjectId, 
 
   // Categories resolved from active subject or default BCP Professional Lab
   const categories: MatrixCategory[] = useMemo(() => {
-    if (activeSubject?.matrix && activeSubject.matrix.length > 0) {
-      return activeSubject.matrix;
+    const activeCats = normalizeMatrixCategories(activeSubject?.matrix);
+    if (activeCats.length > 0) {
+      return activeCats;
     }
     const tmpl = activeSubject?.gradingMatrixTemplateId
       ? templates.find((t) => t.id === activeSubject.gradingMatrixTemplateId)
       : templates[0];
+    const tmplCats = normalizeMatrixCategories(tmpl?.matrix);
     return (
-      tmpl?.matrix || [
-        { id: 'cat-proflab-cs', name: 'Class Standing', weight: 35 },
-        { id: 'cat-proflab-cbo', name: 'Projects', weight: 40 },
-        { id: 'cat-proflab-exam', name: 'Exams', weight: 25 },
-      ]
+      tmplCats.length > 0
+        ? tmplCats
+        : [
+            { id: 'cat-proflab-cs', name: 'Class Standing', weight: 35 },
+            { id: 'cat-proflab-cbo', name: 'Projects', weight: 40 },
+            { id: 'cat-proflab-exam', name: 'Exams', weight: 25 },
+          ]
     );
   }, [activeSubject, templates]);
 

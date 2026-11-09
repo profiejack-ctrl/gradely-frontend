@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../api/client';
 import { GradingMatrixTemplate, Subject, MatrixCategory } from '../api/types';
+import { normalizeMatrixCategories } from '../utils/matrix';
 import {
   X,
   Globe,
@@ -87,9 +88,10 @@ export const GlobalTemplatesModal: React.FC<GlobalTemplatesModalProps> = ({
     setTmplDesc(tmpl.description || '');
     setTmplPassing(tmpl.passingGrade ?? tmpl.passing_grade ?? 75);
 
-    const cs = tmpl.matrix?.find((c) => c.name.toLowerCase().includes('standing') || c.name.toLowerCase().includes('class'));
-    const proj = tmpl.matrix?.find((c) => c.name.toLowerCase().includes('project') || c.name.toLowerCase().includes('output'));
-    const exam = tmpl.matrix?.find((c) => c.name.toLowerCase().includes('exam'));
+    const matrixCats = normalizeMatrixCategories(tmpl.matrix);
+    const cs = matrixCats.find((c) => c.name.toLowerCase().includes('standing') || c.name.toLowerCase().includes('class'));
+    const proj = matrixCats.find((c) => c.name.toLowerCase().includes('project') || c.name.toLowerCase().includes('output'));
+    const exam = matrixCats.find((c) => c.name.toLowerCase().includes('exam'));
 
     setCsWeight(cs?.weight ?? 40);
     setProjectWeight(proj?.weight ?? 25);
@@ -555,7 +557,7 @@ export const GlobalTemplatesModal: React.FC<GlobalTemplatesModalProps> = ({
 
                 {/* 3 Category Bento Cards (Exact Match to Image 2) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-                  {(currentTemplate.matrix || []).map((cat, idx) => (
+                  {normalizeMatrixCategories(currentTemplate.matrix).map((cat, idx) => (
                     <div
                       key={cat.id || idx}
                       className="bg-[#111A2D]/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between"

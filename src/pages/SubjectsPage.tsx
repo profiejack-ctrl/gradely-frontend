@@ -24,6 +24,7 @@ import {
   Library,
 } from 'lucide-react';
 import { AddSubjectModal } from '../components/AddSubjectModal';
+import { normalizeMatrixCategories } from '../utils/matrix';
 import { GlobalTemplatesModal } from '../components/GlobalTemplatesModal';
 
 interface SubjectsPageProps {
@@ -220,7 +221,8 @@ export const SubjectsPage: React.FC<SubjectsPageProps> = ({ onNavigate }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {courses.map((c) => {
                 const tmpl = c.gradingMatrixTemplateId ? templateMap.get(c.gradingMatrixTemplateId) : null;
-                const matrixCats = c.matrix || tmpl?.matrix || [
+                const rawMatrix = normalizeMatrixCategories(c.matrix || tmpl?.matrix);
+                const matrixCats = rawMatrix.length > 0 ? rawMatrix : [
                   { id: '1', name: 'Class Standing', weight: 40 },
                   { id: '2', name: 'Project (CBO)', weight: 25 },
                   { id: '3', name: 'Examination (WE)', weight: 35 },
@@ -342,7 +344,8 @@ export const SubjectsPage: React.FC<SubjectsPageProps> = ({ onNavigate }) => {
                   ? templateMap.get(sub.gradingMatrixTemplateId)
                   : null;
 
-                const matrixCategories = sub.matrix || tmpl?.matrix || [
+                const rawSubMatrix = normalizeMatrixCategories(sub.matrix || tmpl?.matrix);
+                const matrixCategories = rawSubMatrix.length > 0 ? rawSubMatrix : [
                   { id: '1', name: 'Class Standing', weight: 40 },
                   { id: '2', name: 'Project (CBO)', weight: 25 },
                   { id: '3', name: 'Examination (WE)', weight: 35 },
