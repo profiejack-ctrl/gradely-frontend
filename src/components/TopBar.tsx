@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { ShieldCheck, Bell, LayoutGrid, Settings, LogOut, ChevronDown, CheckCircle2, User, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Bell, LayoutGrid, Settings, LogOut, ChevronDown, CheckCircle2, User, RefreshCw, Edit3 } from 'lucide-react';
+import { UserProfileModal } from './UserProfileModal';
 
 interface TopBarProps {
   onOpenSettings?: () => void;
@@ -11,6 +12,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenSettings }) => {
   const { user, logout } = useAuth();
   const { refreshData, isRefreshing } = useData();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const getInitials = (name?: string) => {
     if (!name) return 'RC';
@@ -75,8 +77,19 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenSettings }) => {
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center gap-3 pl-2 pr-3 py-1.5 rounded-xl bg-[#0D1525] border border-slate-800 hover:border-slate-700 transition"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#0284C7]/20 border border-[#0284C7]/60 flex items-center justify-center text-[#38BDF8] font-bold text-xs shadow-inner">
-              {getInitials(user?.name)}
+            <div className="w-8 h-8 rounded-lg bg-[#0284C7]/20 border border-[#0284C7]/60 flex items-center justify-center text-[#38BDF8] font-bold text-xs shadow-inner overflow-hidden">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user?.name || 'Avatar'}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                getInitials(user?.name)
+              )}
             </div>
             <div className="text-left hidden sm:block">
               <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1">
@@ -101,7 +114,20 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenSettings }) => {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-800">
+              <div className="py-1">
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    setIsProfileModalOpen(true);
+                  }}
+                  className="w-full px-3 py-2 text-xs text-left rounded-lg hover:bg-slate-800/70 text-slate-200 flex items-center gap-2 transition"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-[#38BDF8]" />
+                  <span>Edit Profile & Avatar</span>
+                </button>
+              </div>
+
+              <div className="pt-1 border-t border-slate-800">
                 <button
                   onClick={() => {
                     logout();
@@ -117,6 +143,11 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenSettings }) => {
           )}
         </div>
       </div>
+
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </header>
   );
 };

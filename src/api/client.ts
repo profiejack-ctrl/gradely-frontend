@@ -754,6 +754,19 @@ class ApiClient {
     this.invalidateCache();
     return res;
   }
+
+  // Profile Management (name, email, avatar, password)
+  async updateProfile(data: {
+    name?: string;
+    email?: string;
+    avatar?: string;
+    newPassword?: string;
+  }): Promise<{ success: boolean; user: User }> {
+    return await this.request<{ success: boolean; user: User }>('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const api = new ApiClient();
