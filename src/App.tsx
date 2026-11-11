@@ -12,6 +12,7 @@ import { AttendancePage } from './pages/AttendancePage';
 import { StudentsPage } from './pages/StudentsPage';
 import { AILearningPlansPage } from './pages/AILearningPlansPage';
 import { FacultyPage } from './pages/FacultyPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { SystemSettingsModal } from './components/SystemSettingsModal';
 
 export const App: React.FC = () => {
@@ -61,6 +62,8 @@ export const App: React.FC = () => {
             }}
           />
         );
+      case 'calendar':
+        return <CalendarPage />;
       case 'gradebook':
         return (
           <GradebookPage

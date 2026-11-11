@@ -20,6 +20,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Plus,
+  Calendar,
+  Sparkles,
 } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -32,7 +34,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenGradebookForSubject,
 }) => {
   const { user } = useAuth();
-  const { sections, subjects, students, assessments, overview } = useData();
+  const { sections, subjects, students, assessments, overview, events } = useData();
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const totalClassesCount = sections.length;
@@ -115,21 +117,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         />
       </div>
 
-      {/* 3. Quick Action Cards (4 in a row) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 3. Quick Action Cards (5 in a row) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <QuickActionCard
           title="Open Gradebook"
-          description="Multi-column spreadsheet for Quizzes, Activities, Projects &..."
+          description="Spreadsheet for Quizzes, Activities, Projects & Exam scoring."
           icon={Table}
           variant="blue"
           onClick={() => handleOpenGradebook()}
         />
         <QuickActionCard
-          title="Take Daily Attendance"
+          title="Daily Attendance"
           description="Roll call with Present, Late, Absent, or Excused status tracking."
           icon={CalendarCheck}
           variant="emerald"
           onClick={() => onNavigate('attendance')}
+        />
+        <QuickActionCard
+          title="Event Calendar"
+          description="Schedule exams, holidays & school events synced with Student App."
+          icon={Calendar}
+          variant="blue"
+          onClick={() => onNavigate('calendar')}
         />
         <QuickActionCard
           title="Grading Matrices"
@@ -139,8 +148,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           onClick={() => onNavigate('subjects')}
         />
         <QuickActionCard
-          title="Reset Student Password"
-          description="Revert forgotten credentials to Student ID with mandatory update..."
+          title="Reset Password"
+          description="Revert forgotten credentials to Student ID with mandatory update."
           icon={Key}
           variant="rose"
           onClick={() => setIsResetModalOpen(true)}

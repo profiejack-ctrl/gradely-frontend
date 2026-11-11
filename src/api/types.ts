@@ -135,6 +135,21 @@ export interface AttendanceRecord {
   note?: string;
 }
 
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  type: 'exam' | 'holiday' | 'activity' | 'class';
+  date: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  time?: string;
+  location?: string;
+  description?: string;
+  subjectId?: string;
+  subjectName?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
 export interface FacultyOverview {
   teacher: {
     id: string;
@@ -173,4 +188,5 @@ export interface AllDataResponse {
   attendance: AttendanceRecord[];
   matrixTemplates: any[];
   holidays: any[];
+  events?: CalendarEvent[];
 }

@@ -7,6 +7,7 @@ import {
   Sparkles,
   Table,
   CalendarCheck,
+  Calendar,
   Users,
   GraduationCap,
   Settings,
@@ -17,6 +18,7 @@ export type NavItem =
   | 'dashboard'
   | 'classes'
   | 'subjects'
+  | 'calendar'
   | 'ai-plans'
   | 'gradebook'
   | 'attendance'
@@ -51,6 +53,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'subjects' as NavItem,
       label: 'Subjects & Matrix',
       icon: Sliders,
+    },
+    {
+      id: 'calendar' as NavItem,
+      label: 'Event Calendar',
+      icon: Calendar,
+      badge: 'SYNC',
     },
     {
       id: 'ai-plans' as NavItem,

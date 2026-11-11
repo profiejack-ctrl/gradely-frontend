@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
-import { AllDataResponse, FacultyOverview, Section, Subject, User, Assessment, GradingMatrixTemplate, Course } from '../api/types';
+import { AllDataResponse, FacultyOverview, Section, Subject, User, Assessment, GradingMatrixTemplate, Course, CalendarEvent } from '../api/types';
 import { useAuth } from './AuthContext';
 
 interface DataContextType {
@@ -10,6 +10,7 @@ interface DataContextType {
   students: User[];
   assessments: Assessment[];
   templates: GradingMatrixTemplate[];
+  events: CalendarEvent[];
   overview: FacultyOverview | null;
   isLoading: boolean;
   isRefreshing: boolean;
@@ -24,6 +25,8 @@ interface DataContextType {
   addTemplateLocal: (template: GradingMatrixTemplate) => void;
   removeTemplateLocal: (templateId: string) => void;
   applyTemplateGloballyLocal: (templateId: string) => void;
+  addEventLocal: (newEvent: CalendarEvent) => void;
+  removeEventLocal: (eventId: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -36,6 +39,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [students, setStudents] = useState<User[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [templates, setTemplates] = useState<GradingMatrixTemplate[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [overview, setOverview] = useState<FacultyOverview | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -51,11 +55,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const [allData, ov, tmpls] = await Promise.all([
+      const [allData, ov, tmpls, evtsRes] = await Promise.all([
         api.getAllData({ forceRefresh: force }),
         api.getFacultyOverview({ forceRefresh: force }),
         api.getMatrixTemplates(),
+        api.getEvents().catch(() => ({ events: [] })),
       ]);
+
+      if (evtsRes && evtsRes.events && evtsRes.events.length > 0) {
+        setEvents(evtsRes.events);
+      } else if (allData?.events && allData.events.length > 0) {
+        setEvents(allData.events);
+      } else if (allData?.holidays) {
+        setEvents(allData.holidays.map((h: any) => ({
+          id: h.id,
+          title: h.title,
+          type: 'holiday',
+          date: h.date,
+          description: h.description,
+        })));
+      }
 
       if (allData) {
         setSections(allData.sections || []);
@@ -117,6 +136,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setStudents([]);
       setAssessments([]);
       setTemplates([]);
+      setEvents([]);
       setOverview(null);
       setIsLoading(false);
     }
@@ -208,6 +228,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, []);
 
+  const addEventLocal = useCallback((newEvent: CalendarEvent) => {
+    setEvents((prev) => {
+      const idx = prev.findIndex((e) => e.id === newEvent.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = newEvent;
+        return copy.sort((a, b) => a.date.localeCompare(b.date));
+      }
+      return [...prev, newEvent].sort((a, b) => a.date.localeCompare(b.date));
+    });
+  }, []);
+
+  const removeEventLocal = useCallback((eventId: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== eventId));
+  }, []);
+
   const refreshData = useCallback(async (force: boolean = true) => {
     await loadData(force);
   }, [loadData]);
@@ -221,6 +257,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         students,
         assessments,
         templates,
+        events,
         overview,
         isLoading,
         isRefreshing,
@@ -235,6 +272,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addTemplateLocal,
         removeTemplateLocal,
         applyTemplateGloballyLocal,
+        addEventLocal,
+        removeEventLocal,
       }}
     >
       {children}

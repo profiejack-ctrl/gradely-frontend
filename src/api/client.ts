@@ -1,4 +1,4 @@
-import { AllDataResponse, FacultyOverview, Section, Subject, User, GradingMatrixTemplate, ScheduleSession, MatrixCategory, Assessment, Course } from './types';
+import { AllDataResponse, FacultyOverview, Section, Subject, User, GradingMatrixTemplate, ScheduleSession, MatrixCategory, Assessment, Course, CalendarEvent } from './types';
 import { MOCK_OVERVIEW, MOCK_SECTIONS, MOCK_SUBJECTS, MOCK_TEACHER } from './mockData';
 
 const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -824,6 +824,36 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  }
+  // Calendar Events (Exams, Holidays, School Activities)
+  async getEvents(): Promise<{ events: CalendarEvent[] }> {
+    return await this.request<{ events: CalendarEvent[] }>('/api/events');
+  }
+
+  async createEvent(data: Omit<CalendarEvent, 'id'>): Promise<{ success: boolean; event: CalendarEvent }> {
+    const res = await this.request<{ success: boolean; event: CalendarEvent }>('/api/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    this.invalidateCache();
+    return res;
+  }
+
+  async updateEvent(id: string, updates: Partial<CalendarEvent>): Promise<{ success: boolean; event: CalendarEvent }> {
+    const res = await this.request<{ success: boolean; event: CalendarEvent }>(`/api/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    this.invalidateCache();
+    return res;
+  }
+
+  async deleteEvent(id: string): Promise<{ success: boolean }> {
+    const res = await this.request<{ success: boolean }>(`/api/events/${id}`, {
+      method: 'DELETE',
+    });
+    this.invalidateCache();
+    return res;
   }
 }
 
