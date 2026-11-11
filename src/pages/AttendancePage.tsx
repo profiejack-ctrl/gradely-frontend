@@ -18,6 +18,8 @@ import {
   Users,
   ChevronDown,
   Sparkles,
+  Trash2,
+  History,
 } from 'lucide-react';
 
 interface AttendancePageProps {
@@ -41,9 +43,15 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
   // Attendance status mapping: studentId -> status (Defaults to 'absent')
   const [attendanceMap, setAttendanceMap] = useState<Record<string, AttendanceStatus>>({});
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
+  const [savedRecordIds, setSavedRecordIds] = useState<string[]>([]);
+  const [savedPeriodForDate, setSavedPeriodForDate] = useState<string | null>(null);
+  const [recordedDates, setRecordedDates] = useState<Array<{ date: string; period: string; count: number }>>([]);
 
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDeleteDate, setConfirmDeleteDate] = useState<string | null>(null);
+  const [reloadCounter, setReloadCounter] = useState(0);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const lastInitialSubjectIdRef = useRef<string | undefined>(undefined);
@@ -148,7 +156,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
     );
   }, [students, activeSectionId]);
 
-  // Load existing attendance records from backend whenever subject or date changes
+  // Load existing attendance records for selected subject & date + recorded dates summary
   useEffect(() => {
     if (!activeSubject?.id) return;
 
@@ -156,15 +164,19 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
     setIsLoadingRecords(true);
 
     api
-      .getSubjectAttendance(activeSubject.id, date, period)
-      .then((res) => {
+      .getSubjectAttendance(activeSubject.id, date)
+      .then(async (res) => {
         if (!isMounted) return;
 
         const newMap: Record<string, AttendanceStatus> = {};
         const newNotes: Record<string, string> = {};
+        const ids: string[] = [];
+        let foundPeriod: string | null = null;
 
         if (res?.records && Array.isArray(res.records)) {
           res.records.forEach((rec) => {
+            if (rec.id) ids.push(rec.id);
+            if (!foundPeriod && rec.period) foundPeriod = rec.period;
             if (rec.student_id && rec.status) {
               newMap[rec.student_id] = rec.status;
               if (rec.note) newNotes[rec.student_id] = rec.note;
@@ -181,15 +193,38 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
 
         setAttendanceMap(newMap);
         setNotesMap(newNotes);
+        setSavedRecordIds(ids);
+        setSavedPeriodForDate(foundPeriod);
+
+        if (Array.isArray(res?.recordedDates)) {
+          setRecordedDates(res.recordedDates);
+        } else {
+          // Graceful fallback: derive recordedDates from full subject attendance
+          try {
+            const allSubjectAtt = await api.getSubjectAttendance(activeSubject.id);
+            if (!isMounted) return;
+            const dateMap = new Map<string, { date: string; period: string; count: number }>();
+            (allSubjectAtt?.records || []).forEach((rec) => {
+              if (!rec.date) return;
+              const prev = dateMap.get(rec.date);
+              if (prev) prev.count += 1;
+              else dateMap.set(rec.date, { date: rec.date, period: rec.period || 'prelim', count: 1 });
+            });
+            setRecordedDates(
+              Array.from(dateMap.values()).sort((a, b) => b.date.localeCompare(a.date))
+            );
+          } catch {}
+        }
       })
       .catch((err) => {
         console.warn('Failed to fetch attendance records:', err);
-        // Fallback default: all students absent
         const initialMap: Record<string, AttendanceStatus> = {};
         sectionStudents.forEach((stud) => {
           initialMap[stud.id] = 'absent';
         });
         setAttendanceMap(initialMap);
+        setSavedRecordIds([]);
+        setSavedPeriodForDate(null);
       })
       .finally(() => {
         if (isMounted) setIsLoadingRecords(false);
@@ -198,7 +233,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
     return () => {
       isMounted = false;
     };
-  }, [activeSubject?.id, date, period, sectionStudents.length]);
+  }, [activeSubject?.id, date, sectionStudents.length, reloadCounter]);
 
   // Filtered and Sorted students
   const processedStudents = useMemo(() => {
@@ -284,9 +319,11 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
 
     try {
       await api.saveAttendanceBatch(records);
+      setReloadCounter((c) => c + 1);
+      refreshData(true).catch(() => {});
       setFeedback({
         type: 'success',
-        message: `Successfully saved roll call for ${records.length} students.`,
+        message: `Successfully saved roll call for ${records.length} students on ${date}.`,
       });
       setTimeout(() => setFeedback(null), 3500);
     } catch (err: any) {
@@ -298,6 +335,57 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
       setIsSaving(false);
     }
   };
+
+  // Delete Roll Call on Specific Date
+  const handleConfirmDeleteRollCall = async () => {
+    if (!activeSubject || !confirmDeleteDate) return;
+
+    const targetDate = confirmDeleteDate;
+    setIsDeleting(true);
+    setFeedback(null);
+
+    try {
+      const res = await api.deleteAttendanceRollByDate(
+        activeSubject.id,
+        targetDate,
+        targetDate === date ? savedRecordIds : []
+      );
+      setConfirmDeleteDate(null);
+
+      // Update local state immediately
+      setRecordedDates((prev) => prev.filter((item) => item.date !== targetDate));
+      if (targetDate === date) {
+        const resetMap: Record<string, AttendanceStatus> = {};
+        sectionStudents.forEach((stud) => {
+          resetMap[stud.id] = 'absent';
+        });
+        setAttendanceMap(resetMap);
+        setNotesMap({});
+        setSavedRecordIds([]);
+        setSavedPeriodForDate(null);
+      }
+
+      setReloadCounter((c) => c + 1);
+      refreshData(true).catch(() => {});
+
+      setFeedback({
+        type: 'success',
+        message: `Deleted attendance roll for ${targetDate} (${res.deletedCount || 0} records removed).`,
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      setConfirmDeleteDate(null);
+      setFeedback({
+        type: 'error',
+        message: err?.message || `Failed to delete attendance roll for ${targetDate}.`,
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const hasSavedForSelectedDate =
+    savedRecordIds.length > 0 || recordedDates.some((d) => d.date === date);
 
   return (
     <div className="space-y-6">
@@ -467,76 +555,147 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
       </div>
 
       {/* 3. Session Controls & Bulk Actions Toolbar */}
-      <div className="bg-[#0D1525] border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-4">
-        {/* Left: Date, Period, Bulk Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Date Picker */}
-          <div className="flex items-center gap-1.5 bg-[#111A2D] border border-slate-700/80 rounded-xl px-3 py-1.5">
-            <span className="text-[10px] uppercase font-bold text-slate-400">Date:</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-transparent text-xs text-white focus:outline-none [color-scheme:dark]"
-            />
-          </div>
+      <div className="bg-[#0D1525] border border-slate-800 rounded-2xl p-3.5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Left: Date, Period, Bulk Buttons */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Date Picker */}
+            <div className="flex items-center gap-1.5 bg-[#111A2D] border border-slate-700/80 rounded-xl px-3 py-1.5">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Date:</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="bg-transparent text-xs text-white focus:outline-none [color-scheme:dark]"
+              />
+            </div>
 
-          {/* Period Selector */}
-          <div className="flex items-center gap-1.5 bg-[#111A2D] border border-slate-700/80 rounded-xl px-3 py-1.5">
-            <span className="text-[10px] uppercase font-bold text-slate-400">Period:</span>
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as any)}
-              className="bg-transparent text-xs text-white font-bold capitalize focus:outline-none cursor-pointer"
-            >
-              <option value="prelim" className="bg-[#0D1525] text-white">Prelim</option>
-              <option value="midterm" className="bg-[#0D1525] text-white">Midterm</option>
-              <option value="finals" className="bg-[#0D1525] text-white">Finals</option>
-            </select>
-          </div>
+            {/* Period Selector */}
+            <div className="flex items-center gap-1.5 bg-[#111A2D] border border-slate-700/80 rounded-xl px-3 py-1.5">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Period:</span>
+              <select
+                value={period}
+                onChange={(e) => setPeriod(e.target.value as any)}
+                className="bg-transparent text-xs text-white font-bold capitalize focus:outline-none cursor-pointer"
+              >
+                <option value="prelim" className="bg-[#0D1525] text-white">Prelim</option>
+                <option value="midterm" className="bg-[#0D1525] text-white">Midterm</option>
+                <option value="finals" className="bg-[#0D1525] text-white">Finals</option>
+              </select>
+            </div>
 
-          <div className="h-5 w-px bg-slate-800 mx-1 hidden sm:block" />
-
-          {/* Mark All as Absent Button (Highlighted as Default Action) */}
-          <button
-            onClick={handleMarkAllAbsent}
-            className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-            title="Reset everyone to Absent"
-          >
-            <X className="w-3.5 h-3.5" />
-            <span>Mark All as Absent (Default)</span>
-          </button>
-
-          {/* Mark All as Present Button */}
-          <button
-            onClick={handleMarkAllPresent}
-            className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-          >
-            <Check className="w-3.5 h-3.5" />
-            <span>Mark All Present</span>
-          </button>
-        </div>
-
-        {/* Right: Save Roll Call Button */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSaveRollCall}
-            disabled={isSaving}
-            className="bg-[#0284C7] hover:bg-[#0369A1] text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-sky-500/20 transition disabled:opacity-50"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Saving Roll Call...</span>
-              </>
+            {/* Date Record Indicator */}
+            {hasSavedForSelectedDate ? (
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold">
+                Recorded ({savedRecordIds.length || recordedDates.find((d) => d.date === date)?.count || 0})
+                {savedPeriodForDate ? ` • ${savedPeriodForDate}` : ''}
+              </span>
             ) : (
-              <>
-                <Save className="w-4 h-4" />
-                <span>Save Roll Call</span>
-              </>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-400 text-[11px] font-semibold">
+                Not Recorded
+              </span>
             )}
-          </button>
+
+            <div className="h-5 w-px bg-slate-800 mx-1 hidden sm:block" />
+
+            {/* Mark All as Absent Button (Highlighted as Default Action) */}
+            <button
+              onClick={handleMarkAllAbsent}
+              className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="Reset everyone to Absent"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Mark All as Absent (Default)</span>
+            </button>
+
+            {/* Mark All as Present Button */}
+            <button
+              onClick={handleMarkAllPresent}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Mark All Present</span>
+            </button>
+          </div>
+
+          {/* Right: Delete Roll Call + Save Roll Call Buttons */}
+          <div className="flex items-center gap-2.5">
+            {hasSavedForSelectedDate && (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteDate(date)}
+                disabled={isDeleting || isSaving}
+                className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/40 font-bold text-xs flex items-center gap-1.5 transition disabled:opacity-50"
+                title={`Delete all attendance records saved on ${date}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Roll Call</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleSaveRollCall}
+              disabled={isSaving || isDeleting}
+              className="bg-[#0284C7] hover:bg-[#0369A1] text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-sky-500/20 transition disabled:opacity-50"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving Roll Call...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Save Roll Call</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Recorded Dates History Strip (quick jump or delete accidental date) */}
+        {recordedDates.length > 0 && (
+          <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 mr-1">
+              <History className="w-3.5 h-3.5 text-sky-400" />
+              <span>Saved Roll Dates ({recordedDates.length}):</span>
+            </span>
+            {recordedDates.map((item) => {
+              const isSelected = item.date === date;
+              return (
+                <div
+                  key={item.date}
+                  className={`inline-flex items-center rounded-lg border text-[11px] transition ${
+                    isSelected
+                      ? 'bg-[#0284C7]/20 border-[#0284C7]/60 text-sky-300'
+                      : 'bg-[#111A2D] border-slate-700/80 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setDate(item.date)}
+                    className="px-2.5 py-1 font-semibold flex items-center gap-1.5"
+                    title={`View attendance on ${item.date}`}
+                  >
+                    <span className="font-mono">{item.date}</span>
+                    <span className="text-[10px] opacity-75 capitalize">
+                      ({item.period} • {item.count})
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteDate(item.date)}
+                    disabled={isDeleting}
+                    className="pr-2 pl-1 py-1 text-slate-400 hover:text-rose-400 transition disabled:opacity-50"
+                    title={`Delete roll call for ${item.date}`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 4. Filter & Search Bar */}
@@ -697,6 +856,76 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ initialSubjectId
           </div>
         )}
       </div>
+
+      {/* Delete Roll Call Confirmation Modal */}
+      {confirmDeleteDate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-[#0D1525] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">Delete Attendance Roll Call</h3>
+                  <p className="text-[11px] text-slate-400">
+                    {activeSubject?.code} • {activeSection?.name || 'Class'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isDeleting && setConfirmDeleteDate(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Are you sure you want to permanently delete all attendance records saved on{' '}
+                <span className="font-mono font-bold text-white bg-slate-800 px-1.5 py-0.5 rounded">
+                  {confirmDeleteDate}
+                </span>
+                ?
+              </p>
+              <p className="text-[11px] text-rose-300/90 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
+                This will remove that date's roll call from the gradebook and student portals. You can re-record it anytime later if needed.
+              </p>
+            </div>
+
+            <div className="px-5 py-4 bg-[#090E17] border-t border-slate-800 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteDate(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteRollCall}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-500/20 transition disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Roll Call</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

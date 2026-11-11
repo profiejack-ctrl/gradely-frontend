@@ -651,6 +651,11 @@ class ApiClient {
       status: 'present' | 'late' | 'absent' | 'excused';
       note?: string;
     }>;
+    recordedDates?: Array<{
+      date: string;
+      period: string;
+      count: number;
+    }>;
   }> {
     const params = new URLSearchParams();
     if (date) params.append('date', date);
@@ -691,7 +696,49 @@ class ApiClient {
     if (res.errors && res.errors.length > 0) {
       throw new Error(res.errors.join(', '));
     }
+    this.invalidateCache();
     return true;
+  }
+
+  async deleteAttendanceRollByDate(
+    subjectId: string,
+    date: string,
+    recordIdsFallback: string[] = []
+  ): Promise<{ success: boolean; deletedCount: number }> {
+    try {
+      const res = await this.request<{ success: boolean; deletedCount: number }>(
+        `/api/faculty/subjects/${encodeURIComponent(subjectId)}/attendance?date=${encodeURIComponent(date)}`,
+        { method: 'DELETE' }
+      );
+      this.invalidateCache();
+      return res;
+    } catch (err: any) {
+      // Fallback to /api/data/sync DELETE batch if explicit route hasn't finished rolling out
+      let idsToDelete = [...recordIdsFallback];
+      if (idsToDelete.length === 0) {
+        try {
+          const existing = await this.getSubjectAttendance(subjectId, date);
+          idsToDelete = (existing?.records || []).map((r) => r.id).filter(Boolean);
+        } catch {}
+      }
+      if (idsToDelete.length > 0) {
+        const mutations = idsToDelete.map((id) => ({
+          table: 'attendance_records',
+          action: 'DELETE',
+          payload: { id },
+        }));
+        const syncRes = await this.request<{ success: boolean; synced?: number; errors?: string[] }>('/api/data/sync', {
+          method: 'POST',
+          body: JSON.stringify({ mutations }),
+        });
+        if (syncRes.errors && syncRes.errors.length > 0) {
+          throw new Error(syncRes.errors.join(', '));
+        }
+        this.invalidateCache();
+        return { success: true, deletedCount: idsToDelete.length };
+      }
+      throw err;
+    }
   }
 
   // Reset Student / Faculty Password
